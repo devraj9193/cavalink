@@ -1,12 +1,16 @@
+import 'package:cavalink/controllers/models/club_models/categories_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_sizer/flutter_sizer.dart';
+import 'package:provider/provider.dart';
 import 'package:timelines_plus/timelines_plus.dart';
 import '../../../utils/constants.dart';
 import '../../controllers/models/club_models/events_model.dart';
+import '../../controllers/providers/fence_providers.dart';
 import '../../utils/navigation_helper.dart';
 import '../../utils/opacity_to_alpha.dart';
 import '../../widgets/button_widget.dart';
 import '../../widgets/common_app_bar_widget.dart';
+import '../../widgets/loading_indicator.dart';
 import '../dashboard_screen.dart';
 import 'categories_screens/category_screen.dart';
 
@@ -27,7 +31,20 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+
+    // Fetch Categories
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<FenceProvider>(context, listen: false)
+          .fetchCategories(context, widget.event.id ?? 0);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final provider = Provider.of<FenceProvider>(context);
+
     return PopScope(
       canPop: false,
       child: Scaffold(
@@ -46,66 +63,69 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
         ),
         body: Padding(
           padding: EdgeInsets.symmetric(horizontal: 3.w, vertical: 2.h),
-          child: Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  child: FixedTimeline.tileBuilder(
-                    theme: TimelineThemeData(
-                      nodePosition: 0,
-                      indicatorPosition: 0,
-                      connectorTheme: ConnectorThemeData(
-                        color: gGreyColor,
-                        thickness: 2,
+          child: provider.isCategoriesLoading
+              ? LoadingIndicator()
+              : Column(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: FixedTimeline.tileBuilder(
+                          theme: TimelineThemeData(
+                            nodePosition: 0,
+                            indicatorPosition: 0,
+                            connectorTheme: ConnectorThemeData(
+                              color: gGreyColor,
+                              thickness: 2,
+                            ),
+                          ),
+                          builder: TimelineTileBuilder.connected(
+                            connectionDirection: ConnectionDirection.before,
+                            itemCount: 4,
+                            indicatorBuilder: (_, i) => Icon(
+                              [
+                                Icons.image,
+                                // Icons.confirmation_number,
+                                Icons.access_time,
+                                Icons.info_outline,
+                                Icons.list_alt_outlined, // NEW ICON FOR INDEX 4
+                              ][i],
+                              color: gHintTextColor,
+                              size: 3.h,
+                            ),
+                            connectorBuilder: (_, __, ___) =>
+                                const SolidLineConnector(
+                                    color: gGreyColor, thickness: 2),
+                            contentsBuilder: (context, index) =>
+                                _buildContent(index, provider),
+                          ),
+                        ),
                       ),
                     ),
-                    builder: TimelineTileBuilder.connected(
-                      connectionDirection: ConnectionDirection.before,
-                      itemCount: 4,
-                      indicatorBuilder: (_, i) => Icon(
-                        [
-                          Icons.image,
-                          // Icons.confirmation_number,
-                          Icons.access_time,
-                          Icons.info_outline,
-                          Icons.list_alt_outlined, // NEW ICON FOR INDEX 4
-                        ][i],
-                        color: gHintTextColor,
-                        size: 3.h,
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 5.w),
+                      child: ButtonWidget(
+                        text: "View Categories",
+                        onPressed: () {
+                          NavigationHelper.push(
+                            context,
+                            CategoryScreen(event: widget.event),
+                          );
+                        },
+                        isLoading: false,
+                        buttonWidth: double.infinity,
+                        radius: 8,
+                        color: secondaryColor,
                       ),
-
-                      connectorBuilder: (_, __, ___) =>
-                      const SolidLineConnector(color: gGreyColor, thickness: 2),
-                      contentsBuilder: (context, index) => _buildContent(index),
                     ),
-                  ),
+                  ],
                 ),
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 5.w),
-                child: ButtonWidget(
-                  text: "View Categories",
-                  onPressed: () {
-                    NavigationHelper.push(
-                      context,
-                      CategoryScreen(event: widget.event),
-                    );
-                  },
-                  isLoading: false,
-                  buttonWidth: double.infinity,
-                  radius: 8,
-                  color: secondaryColor,
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
   }
 
   /// MAIN BUILDER SWITCH
-  Widget _buildContent(int index) {
+  Widget _buildContent(int index, FenceProvider provider) {
     switch (index) {
       case 0:
         return _buildImageGallery();
@@ -126,7 +146,8 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
       case 1:
         return _buildCard(
           title: "Time & Date",
-          child: _buildInfoRow(Icons.calendar_today, widget.event.eventStartDate ?? ''),
+          child: _buildInfoRow(
+              Icons.calendar_today, widget.event.eventStartDate ?? ''),
         );
       case 2:
         return _buildCard(
@@ -141,7 +162,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
           ),
         );
       case 3:
-        return _buildEventDetailImages();
+        return _buildEventDetailImages(provider);
       default:
         return const SizedBox();
     }
@@ -149,96 +170,98 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
 
   /// IMAGE GALLERY
   Widget _buildImageGallery() => Padding(
-    padding: EdgeInsets.only(left: 5.w, bottom: 3.h),
-    child: SizedBox(
-      height: 30.h,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: horseImages.length,
-        separatorBuilder: (_, __) => SizedBox(width: 5.w),
-        itemBuilder: (_, i) => Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: gBlackColor.withAlpha(AlphaHelper.fromOpacity(0.15)),
-                blurRadius: 10,
-                offset: const Offset(2, 4),
+        padding: EdgeInsets.only(left: 5.w, bottom: 3.h),
+        child: SizedBox(
+          height: 30.h,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: horseImages.length,
+            separatorBuilder: (_, __) => SizedBox(width: 5.w),
+            itemBuilder: (_, i) => Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: gBlackColor.withAlpha(AlphaHelper.fromOpacity(0.15)),
+                    blurRadius: 10,
+                    offset: const Offset(2, 4),
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: Image.network(
-              horseImages[i],
-              width: 60.w,
-              height: 30.h,
-              fit: BoxFit.cover,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: Image.network(
+                  horseImages[i],
+                  width: 60.w,
+                  height: 30.h,
+                  fit: BoxFit.cover,
+                ),
+              ),
             ),
           ),
         ),
-      ),
-    ),
-  );
+      );
 
   /// COMMON CARD WRAPPER
-  Widget _buildCard({required String title, required Widget child,Widget? book}) => Container(
-    margin: EdgeInsets.only(bottom: 3.h, left: 3.w),
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      boxShadow: [
-        BoxShadow(
-          color: gBlackColor.withAlpha(AlphaHelper.fromOpacity(0.2)),
-          blurRadius: 8,
-          offset: const Offset(0, 4),
+  Widget _buildCard(
+          {required String title, required Widget child, Widget? book}) =>
+      Container(
+        margin: EdgeInsets.only(bottom: 3.h, left: 3.w),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: gBlackColor.withAlpha(AlphaHelper.fromOpacity(0.2)),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-      ],
-    ),
-    child: Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: fontSize15,
-                  fontFamily: fontMedium,
-                  color: gBlackColor,
-                ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: fontSize15,
+                      fontFamily: fontMedium,
+                      color: gBlackColor,
+                    ),
+                  ),
+                  SizedBox(height: 1.h),
+                  child,
+                ],
               ),
-              SizedBox(height: 1.h),
-              child,
-            ],
-          ),
+            ),
+            book ?? SizedBox(),
+          ],
         ),
-        book ?? SizedBox(),
-      ],
-    ),
-  );
+      );
 
   /// SIMPLE ICON + TEXT ROW
   Widget _buildInfoRow(IconData icon, String text) => Row(
-    children: [
-      Icon(icon, color: gHintTextColor, size: 2.h),
-      SizedBox(width: 2.w),
-      Expanded(
-        child: Text(
-          text,
-          style: TextStyle(
-            color: gHintTextColor,
-            fontSize: fontSize12,
-            fontFamily: fontBook,
+        children: [
+          Icon(icon, color: gHintTextColor, size: 2.h),
+          SizedBox(width: 2.w),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: gHintTextColor,
+                fontSize: fontSize12,
+                fontFamily: fontBook,
+              ),
+            ),
           ),
-        ),
-      ),
-    ],
-  );
+        ],
+      );
 
-  Widget _buildEventDetailImages  () {
+  Widget _buildEventDetailImages(FenceProvider provider) {
     return Container(
       margin: EdgeInsets.only(left: 3.w, bottom: 3.h),
       padding: EdgeInsets.all(14),
@@ -253,34 +276,71 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Event Details",
-            style: TextStyle(
-              fontSize: fontSize15,
-              fontFamily: fontMedium,
-              color: gBlackColor,
+      child: provider.categories == null || provider.categories!.isEmpty
+          ? Center(
+              child: Text(
+                "No categories available",
+                style: TextStyle(
+                  fontSize: fontSize14,
+                  fontFamily: fontMedium,
+                  color: gBlackColor,
+                ),
+              ),
+            )
+          : SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Event Details",
+                    style: TextStyle(
+                      fontSize: fontSize15,
+                      fontFamily: fontMedium,
+                      color: gBlackColor,
+                    ),
+                  ),
+                  SizedBox(height: 2.h),
+
+                  // Replaced ListView with Column
+                  ...provider.categories!.asMap().entries.map((entry) {
+                    int index = entry.key;
+                    var category = entry.value;
+
+                    return GestureDetector(
+                      onTap: () {
+                        showSubCategoryPopup(category, index);
+                      },
+                      child: Card(
+                        elevation: 4,
+                        margin: EdgeInsets.only(bottom: 2.h),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 4.w, vertical: 2.h),
+                          child: Row(
+                            children: [
+                              Icon(Icons.flag_outlined,
+                                  color: secondaryColor, size: 3.h),
+                              SizedBox(width: 3.w),
+                              Text(
+                                category.categoryName ?? '',
+                                style: TextStyle(
+                                  fontSize: fontSize15,
+                                  fontFamily: fontMedium,
+                                  color: gHintTextColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
             ),
-          ),
-          SizedBox(height: 2.h),
-
-          _detailRow("Table", "A"),
-          _detailRow("Height", "100 CM"),
-          _detailRow("Obstacle", "10"),
-          _detailRow("Efforts", "11"),
-          _detailRow("Course Walk", "1500 HRS"),
-
-          Divider(height: 25),
-
-          _detailRow("Speed", "325 M/MIN"),
-          _detailRow("Length", "420 MTR"),
-          _detailRow("Time Allowed", "78 SEC"),
-          _detailRow("Time Limit", "156 SEC"),
-          _detailRow("Start Time", "1545 HRS"),
-        ],
-      ),
     );
   }
 
@@ -294,15 +354,15 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
             "$label :",
             style: TextStyle(
               fontSize: fontSize13,
-              fontFamily: fontMedium,
+              fontFamily: fontBook,
               color: gHintTextColor,
             ),
           ),
           Text(
             value,
             style: TextStyle(
-              fontSize: fontSize13,
-              fontFamily: fontBook,
+              fontSize: fontSize14,
+              fontFamily: fontMedium,
               color: gBlackColor,
             ),
           ),
@@ -311,5 +371,78 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     );
   }
 
+  void showSubCategoryPopup(Category categories, int index) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 2.h, horizontal: 3.w),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Heading
+                Center(
+                  child: Text(
+                    categories.categoryName ?? '',
+                    style: TextStyle(
+                      fontSize: fontSize16,
+                      fontFamily: fontMedium,
+                      color: gBlackColor,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: EdgeInsets.symmetric(vertical: 1.h),
+                  child: Divider(),
+                ),
+                ListView.builder(
+                  itemCount: categories.ageGroups?.length,
+                  shrinkWrap: true,
+                  physics: NeverScrollableScrollPhysics(),
+                  itemBuilder: (context, i) {
+                    final sub = categories.ageGroups?[i];
 
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Sub category name heading
+                        Text(
+                          sub?.ageGroupName ?? '',
+                          style: TextStyle(
+                            fontSize: fontSize14,
+                            fontFamily: fontMedium,
+                            color: gBlackColor,
+                          ),
+                        ),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 3.w,vertical: 1.h),
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _detailRow("Table", sub?.ageGroupTable ?? ''),
+                              _detailRow("Max Penalty", sub?.maxPenalty ?? ''),
+                              _detailRow("Height", sub?.height ?? ''),
+                              _detailRow("Speed", sub?.speed ?? ''),
+                              _detailRow("Length", sub?.length ?? ''),
+                            ],
+                          ),
+                        ),
+
+                      ],
+                    );
+                  },
+                ),
+
+                SizedBox(height: 2.h),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 }

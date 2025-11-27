@@ -167,7 +167,7 @@ class _TotalPointsScreenState extends State<TotalPointsScreen> {
                               int maxPenalty = int.tryParse("${widget.participants.ageGroups?.maxPenalty}") ?? 0;
 
                               if (totalPenalty > maxPenalty) {
-                                finalStatus = "eliminated";
+                                finalStatus = "disqualified";
                               }
                               // else keep widget.status as is (e.g., "registered" or "active")
                             }

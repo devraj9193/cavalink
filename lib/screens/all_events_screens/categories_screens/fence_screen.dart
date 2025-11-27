@@ -193,11 +193,19 @@ class _FenceScreenState extends State<FenceScreen> {
                       text: provider.isLastFence() ? "Submit" : "Next",
                       onPressed: provider.isLastFence()
                           ? (provider.allAnswered
-                              ? () => goToTotal(status: "active")
-                              : null)
+                          ? () => goToTotal(status: "active")
+                          : null)
                           : (provider.canGoNext(provider.currentFence)
-                              ? () => checkMaxPenalty(provider)
-                              : null),
+                          ? () => onNextClick(provider)
+                          : null),
+
+                      // onPressed: provider.isLastFence()
+                      //     ? (provider.allAnswered
+                      //         ? () => goToTotal(status: "active")
+                      //         : null)
+                      //     : (provider.canGoNext(provider.currentFence)
+                      //         ? () => checkMaxPenalty(provider)
+                      //         : null),
                       isLoading: false,
                       radius: 8,
                       buttonWidth: 20.w,
@@ -305,32 +313,66 @@ class _FenceScreenState extends State<FenceScreen> {
     );
   }
 
-  void checkMaxPenalty(FenceProvider provider) {
-    final maxPenalty =
-        int.parse("${widget.participants.ageGroups?.maxPenalty}");
+  // void checkMaxPenalty(FenceProvider provider) {
+  //   final maxPenalty =
+  //       int.parse("${widget.participants.ageGroups?.maxPenalty}");
+  //
+  //   if (provider.penaltyPoints > maxPenalty) {
+  //     showDialog(
+  //       context: context,
+  //       builder: (_) => AlertDialog(
+  //         title: const Text("Max Penalty Exceeded"),
+  //         content: Text(
+  //           "Your total penalty (${provider.penaltyPoints}) exceeds max allowed ($maxPenalty).",
+  //         ),
+  //         actions: [
+  //           TextButton(
+  //             child: const Text("OK"),
+  //             onPressed: () {
+  //               Navigator.pop(context);
+  //               goToTotal(status: "eliminated");
+  //             },
+  //           ),
+  //         ],
+  //       ),
+  //     );
+  //   } else {
+  //     provider.goNext();
+  //   }
+  // }
 
-    if (provider.penaltyPoints > maxPenalty) {
+  void onNextClick(FenceProvider provider) {
+    final int index = provider.currentFence;
+    final selections = provider.selections[index];
+
+    // If user selected R2 → ask elimination confirmation
+    if (selections.contains("R2")) {
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
-          title: const Text("Max Penalty Exceeded"),
-          content: Text(
-            "Your total penalty (${provider.penaltyPoints}) exceeds max allowed ($maxPenalty).",
-          ),
+          title: const Text("Are you sure?"),
+          content: const Text("This player will be eliminated."),
           actions: [
             TextButton(
-              child: const Text("OK"),
+              onPressed: () => Navigator.pop(context), // Cancel
+              child: const Text("No"),
+            ),
+            TextButton(
               onPressed: () {
                 Navigator.pop(context);
                 goToTotal(status: "eliminated");
               },
+              child: const Text("Yes"),
             ),
           ],
         ),
       );
-    } else {
-      provider.goNext();
+
+      return; // Stop next movement
     }
+
+    // Normal next navigation
+    provider.goNext();
   }
 
   void goToTotal({required String status}) {

@@ -23,6 +23,9 @@ class StatusHelper {
       case "active":
         return StatusInfo(label: "Qualified", color: Colors.green);
 
+      case "disqualified":
+        return StatusInfo(label: "Disqualified", color: gSecondaryColor);
+
       default:
         return StatusInfo(label: "Unknown", color: gGreyColor);
     }
